@@ -70,6 +70,12 @@ public class UnicodeIME extends InputMethodService {
     private long metaState = 0;
     private StringBuilder unicodeString = new StringBuilder();
 
+    /**
+     * ADDED BY MO: Editor Action 싦행을 위해 사용된다.
+     */
+    private EditorInfo editorInfo = null;
+    //END
+
     @Override
     public void onStartInput(EditorInfo attribute, boolean restarting) {
         Log.i(TAG, "onStartInput");
@@ -80,6 +86,9 @@ public class UnicodeIME extends InputMethodService {
             isShifted = false;
         }
         unicodeString = new StringBuilder();
+        //ADDED BY MO: Editor Action 싦행을 위해 사용된다.
+        this.editorInfo = attribute;
+        //END
     }
 
     @Override
@@ -87,6 +96,9 @@ public class UnicodeIME extends InputMethodService {
         Log.i(TAG, String.format("onFinishInput: %s", unicodeString));
         super.onFinishInput();
         unicodeString = new StringBuilder();
+        //ADDED BY MO: Editor Action 싦행을 위해 사용된다.
+        this.editorInfo = null;
+        //END
     }
 
     @Override
@@ -100,12 +112,70 @@ public class UnicodeIME extends InputMethodService {
         return false;
     }
 
+    /**
+     * KEYCODE_ENTER 호출시 키보드에서 수행할 수 있는 Editor Action 이 존재할 경우 실행한다.
+     * Available Actions:
+     *  - {@link EditorInfo.IME_ACTION_GO}
+     *  - {@link EditorInfo.IME_ACTION_SEARCH}
+     *  - {@link EditorInfo.IME_ACTION_SEND}
+     *  - {@link EditorInfo.IME_ACTION_NEXT}
+     *  - {@link EditorInfo.IME_ACTION_DONE}
+     *  - {@link EditorInfo.IME_ACTION_PREVIOUS}
+     * @param attribute - The attributes of the editor that input is starting in.
+     * @return success
+     */
+    private boolean onKeycodeEnter(EditorInfo attribute) {
+        if (attribute == null) {
+            return false;
+        }
+        switch (attribute.imeOptions & (EditorInfo.IME_MASK_ACTION|EditorInfo.IME_FLAG_NO_ENTER_ACTION)) {
+            case EditorInfo.IME_ACTION_GO:
+                Log.i(TAG, String.format("performEditorAction=IME_ACTION_GO"));
+                return getCurrentInputConnection().performEditorAction(EditorInfo.IME_ACTION_GO);
+            case EditorInfo.IME_ACTION_SEARCH:
+                Log.i(TAG, String.format("performEditorAction=IME_ACTION_SEARCH"));
+                return getCurrentInputConnection().performEditorAction(EditorInfo.IME_ACTION_SEARCH);
+            case EditorInfo.IME_ACTION_SEND:
+                Log.i(TAG, String.format("performEditorAction=IME_ACTION_SEND"));
+                return getCurrentInputConnection().performEditorAction(EditorInfo.IME_ACTION_SEND);
+            case EditorInfo.IME_ACTION_NEXT:
+                Log.i(TAG, String.format("performEditorAction=IME_ACTION_NEXT"));
+                return getCurrentInputConnection().performEditorAction(EditorInfo.IME_ACTION_NEXT);
+            case EditorInfo.IME_ACTION_DONE:
+                Log.i(TAG, String.format("performEditorAction=IME_ACTION_DONE"));
+                return getCurrentInputConnection().performEditorAction(EditorInfo.IME_ACTION_DONE);
+            case EditorInfo.IME_ACTION_PREVIOUS:
+                Log.i(TAG, String.format("performEditorAction=IME_ACTION_PREVIOUS"));
+                return getCurrentInputConnection().performEditorAction(EditorInfo.IME_ACTION_PREVIOUS);
+        }
+        return false;
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         Log.i(TAG, String.format("onKeyDown (keyCode='%s', event.keyCode='%s', metaState='%s')",
                 keyCode, event.getKeyCode(), event.getMetaState()));
-        int c = getUnicodeChar(keyCode, event);
+        //ADDED BY MO: KEYCODE_CLEAR 를 사용하여 input box의 기 입력된 내용을 삭제한다.
+        // 다른 방법으로는, 아래와 같이 clear할 수 있다.
+        //   1) adb shell input keyevent KEYCODE_MOVE_END
+        //   2) adb shell input keyevent --longpress $(printf 'KEYCODE_DEL %.0s' {1..250})
+        if (keyCode == KeyEvent.KEYCODE_CLEAR) {
+            Log.i(TAG, String.format("keyCode=KEYCODE_CLEAR"));
+            this.clear();
+            return true;
+        }
+        //END
 
+        //ADDED BY MO: KEYCODE_ENTER 호출시 키보드에서 수행할 수 있는 Editor Action 이 존재할 경우 실행한다.
+        if (keyCode == KeyEvent.KEYCODE_ENTER) {
+            Log.i(TAG, String.format("keyCode=KEYCODE_ENTER"));
+            if (this.onKeycodeEnter(this.editorInfo)) {
+                return true;
+            }
+        }
+        //END
+
+        int c = getUnicodeChar(keyCode, event);
         if (c == 0) {
             return super.onKeyDown(keyCode, event);
         }
@@ -136,6 +206,13 @@ public class UnicodeIME extends InputMethodService {
                 keyCode, event.getKeyCode(), event.getMetaState()));
         metaState = MetaKeyKeyListener.handleKeyUp(metaState, keyCode, event);
         return super.onKeyUp(keyCode, event);
+    }
+
+    /**
+     * clear all
+     */
+    private void clear() {
+        getCurrentInputConnection().deleteSurroundingText(10000, 10000);
     }
 
     private void shift() {
