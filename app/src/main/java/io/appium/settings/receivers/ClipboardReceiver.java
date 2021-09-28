@@ -38,7 +38,7 @@ public class ClipboardReceiver extends BroadcastReceiver implements HasAction {
 
     private String getClipboardText(Context context) {
         final ClipboardManager cm = (ClipboardManager) context
-                .getSystemService(Context.CLIPBOARD_SERVICE);
+            .getSystemService(Context.CLIPBOARD_SERVICE);
         if (cm == null) {
             Log.e(TAG, "Cannot get an instance of ClipboardManager");
             return null;
@@ -53,6 +53,20 @@ public class ClipboardReceiver extends BroadcastReceiver implements HasAction {
         return charSequenceToString(cd.getItemAt(0).coerceToText(context));
     }
 
+    /** Added by TAK: method that sets primary clip, can set only plain text */
+    private void setClipboardText(Context context, String msg) {
+        final ClipboardManager cm = (ClipboardManager) context
+            .getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm == null) {
+            Log.e(TAG, "Cannot get an instance of ClipboardManager");
+        } else {
+            final String label = "Appptest";
+            ClipData clip = ClipData.newPlainText(label, msg);
+            cm.setPrimaryClip(clip);
+        }
+    }
+    /** END */
+
     /**
      * Responds to broadcast requests like
      * am broadcast -a io.appium.settings.clipboard.get
@@ -61,6 +75,14 @@ public class ClipboardReceiver extends BroadcastReceiver implements HasAction {
      */
     @Override
     public void onReceive(Context context, Intent intent) {
+        /** Added by TAK: if there is msg in broadcast, set clipboard, then get clipboard */
+        String msg = intent.getStringExtra("msg");
+        if (msg != null){
+            Log.d(TAG, "setting clipboard with text '" + msg + "'");
+            setClipboardText(context, msg);
+        }
+        /** END */
+
         Log.d(TAG, "Getting current clipboard content");
         final String clipboardContent = getClipboardText(context);
         if (clipboardContent == null) {
